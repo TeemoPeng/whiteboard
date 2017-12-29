@@ -2,13 +2,13 @@
     <div class="white-board" v-show='show'>
         <div id="boardToolContainer" class="boardToolContainer">
             <div class="left-tool">
-                <div id="pencil" title="Brush" class="boardBtn tool"><i class="iconfont icon-pencil"></i></div>
-                <div id="eraser" title="Eraser" class="boardBtn tool"><i class="iconfont icon-eraser"></i></div>
+                <div id="pencil" title="Brush" class="boardBtn tool"><i class="iconfont icon-pencil" ></i></div>
+                <div id="eraser"   title="Eraser" class="boardBtn tool"><i class="iconfont icon-eraser"></i></div>
                 <div id="clear" title="Clear Board" class="boardBtn"><i class="iconfont icon-refresh"></i></div>
-                <div id="text" title="Text" class="boardBtn tool"><i class="iconfont icon-text"></i></div>
-                <div id="bucket" title="Paint Bucket" class="boardBtn tool" hidden="hidden">F</div>
+                <div id="text"  title="Text" class="boardBtn tool"><i class="iconfont icon-text"></i></div>
+                <div id="bucket"  title="Paint Bucket" class="boardBtn tool" hidden="hidden">F</div>
 
-                <div id="line" title="Line" class="boardBtn tool"><i class="iconfont icon-line"></i></div>
+                <div id="line" title="Line"  class="boardBtn tool"><i class="iconfont icon-line"></i></div>
                 <div id="rectangle" title="Rectangle" class="boardBtn tool"><i class="iconfont icon-rectangle"></i></div>
                 <div id="ellipse" title="Ellipse" class="boardBtn tool"><i class="iconfont icon-circle"></i></div>
                 <div style="margin:0 5px;">
@@ -36,7 +36,6 @@
                     <i class="iconfont icon-close" id='closeBoard'></i>
                 </div>             
             </div> 
-
             <div class='show-color' id='showColor'>
                 <span></span>
                 <span></span>
@@ -274,10 +273,10 @@
                 </div>                
             </div>
         </div>
-        <div class="canvas-container" >
-            <canvas id="layer" class="cnvs" style="z-index:1; cursor:crosshair;background: transparent;"></canvas>
-            <canvas id="canvas2" class="cnvs" style="z-index:0;background: transparent;"></canvas>
-            <canvas id="canvas" class="cnvs" style="z-index:3;background: #fff;"></canvas>
+        <div class="canvas-container">
+            <canvas id="layer" @touchstart='drawStart' @touchmove.prevent='drawMove' @touchend='drawEnd' class="cnvs" style="z-index:1; cursor:crosshair;background: transparent;"></canvas>
+            <canvas id="canvas2" @touchstart='drawStart' @touchmove.prevent='drawMove' @touchend='drawEnd' class="cnvs" style="z-index:0;background: transparent;"></canvas>
+            <canvas id="canvas" @touchstart='drawStart' @touchmove.prevent='drawMove' @touchend='drawEnd' class="cnvs" style="z-index:3;background: #fff;"></canvas>
         </div>
         <div class="confirm-box" id='confirm-box'>
             <div class="box-inner">
@@ -327,15 +326,37 @@
     export default{
         data(){
             return {
-                canvas:null,
                 currentLineSize:0,
                 dataUrl:'',
-                show:this.isShow
+                show:this.isShow,
+                currentLineSize:0,
+                dataUrl:'',
+                show:this.isShow,
+                canvas:null,
+                layer:null,
+                currentLineSize:4,
+                width:0,
+                height:0,
+                ctx:null,
+                lCtx:null,
+                tool:'pencil',
+                currentColor:'',
+                currentBrushSize:0,
+                currentEraserSize:0,
+                currentFont:0,
+                tempDraw:[],
+                socket:null,
+                mouseDown:false,
+                iX:0,
+                iY:0,
+                fX:0,
+                fY:0,
+                isConfirm:false,
+                imageUrl:''
             }
         },
         mounted(){
-            const self = this;              
-            self.init(self.backgroundImage);            
+            const self = this;   
         },
         props:{
             isShow:{
@@ -352,194 +373,27 @@
             }
         },
         methods:{
-            // colseBoard(){
-            //     this.show = false;
-            //     this.$emit('showBoard',false);
-            //     socket.emit('showBoard',false);
-
-            //     socket.on('showBoard',function(data){
-            //         console.log('showBoard:',data)
-            //     })
-            // },
-            init(url){
+            init(options){
                 const self = this;
-                var canvas,canvasBg;
-                var currentLineSize;
+                self.canvas = document.querySelector('#canvas');
+                self.layer = document.querySelector('#layer');
 
-                if(!this.isShow){
-                    return
-                }
-                canvas = $("#canvas")[0];
-                // canvasBg = $('#canvasBg')[0];
+                self.width = self.canvas.width;
+                self.height = self.canvas.height;
 
-                var layer = $("#layer")[0];
-                var width = $("#canvas").width();
-                var height = $("#canvas").height();
-                var ctx = canvas.getContext("2d");
-                var lCtx = layer.getContext('2d');
-                var tool, currentColor, currentBrushSize, currentEraserSize, currentFont;
-                var tempDraw = [];
-                var socket = io('http://192.168.8.31:8080');
-                console.log('id:',socket)
-                // for(var i in socket){
-                //     console.log(i)
-                // }
-                var mouseDown = false;
-                var iX, iY, fX, fY;
-                var isConfirm = false;
-                createImage();
+                self.ctx = self.canvas.getContext('2d');
+                self.lCtx = self.canvas.getContext('2d');
+                self.socket = io(options.socketHost);
+                self.imageUrl = options.backgroundImage;
+                self.createImage(self.imageUrl);
+                console.log('imageUrl:',self.imageUrl)
 
-                // $(".cnvs").mousedown(function (event) {
-                //     makeMouseDown(event);
-                // })
+                self.canvas.width = document.documentElement.clientWidth;
+                self.canvas.height = document.documentElement.clientHeight;
 
-                $(".cnvs").on('mousedown touchstart',function(event){
-                        if($('.mobile-table').css('display') == 'block'){
-                            $('#colorContainer').hide();
-                        }
-                        var pageX = event.pageX || event.originalEvent.targetTouches[0].pageX;
-                        var pageY = event.pageY || event.originalEvent.targetTouches[0].pageY;
-
-                        makeMouseDown(pageX,pageY);
-                        socket.emit('touchstart', {x:pageX,y:pageY});
-                    }
-                )
-                socket.on('touchstart', function (data) { 
-                    if($('.mobile-table').css('display') == 'block'){
-                        $('#colorContainer').hide();
-                    }
-                    makeMouseDown(data.x,data.y);           
-                })                
-                        
-
-                $('#closeBoard').on('click',function(){
-                    self.show = false;
-                    console.log('show:',self.show);
-                    self.$emit('showBoard',false);
-                    // socket.emit('hideBoard',false);                    
-                });
-
-                socket.on('hideBoard',function(data){
-                    console.log('hideBoard:',data);
-                    self.show = data;
-                })
-
-                // $(".cnvs").mouseup(function () {
-                //     makeMouseUp();
-                // });
-
-                $(".cnvs").on('mouseup touchend',function(){
-                    makeMouseUp();    
-                    socket.emit('touchend', 'touchend');   
-                });   
-                socket.on('touchend', function (data) { 
-                    makeMouseUp();           
-                }) 
-
-                // $(".cnvs").mousemove(function (event) {
-                //     makeMouseMove(event);
-                // });
-
-                $(".cnvs").on('mousemove touchmove',function(event){
-                    event.preventDefault();
-                    var pageX = event.pageX || event.originalEvent.targetTouches[0].pageX;
-                    var pageY = event.pageY || event.originalEvent.targetTouches[0].pageY;
-                    makeMouseMove(pageX,pageY);
-                    socket.emit('touchmove', {x:pageX,y:pageY})
-                });
-
-                socket.on('touchmove', function (data) {        
-                    makeMouseMove(data.x,data.y);           
-                })
-
-                $(".tool").click(function () {        
-                    changeTool($(this).attr("id"));
-                    socket.emit('changeTool',$(this).attr('id'))
-                });
-
-                socket.on('changeTool',function(data){
-                    changeTool(data)
-                })
-
-
-                //text controls///////////////////////////////   
-                $("#txtInsert").click(function (e) {
-                    var pageX = e.pageX || e.originalEvent.targetTouches[0].pageX;
-                    var pageY = e.pageY || e.originalEvent.targetTouches[0].pageY;
-                    insertText({x:pageX,y:pageY});
-                    socket.emit('textInsert',{x:pageX,y:pageY})
-                });
-
-                socket.on('textInsert',function(data){
-                    insertText(data)
-                })
-
-                $("#txtValue").keydown(function (e) {
-
-                    //insert text on ENTER        
-                    if (e.keyCode === 13) insertText();
-
-                });
-
-                $("#txtCancel").click(function () {
-                    $("#txtDialog").hide(100);
-                    $("#txtValue").val("");
-                    socket.emit('textCancel','textCancel')
-                });
-
-                socket.on('textCancel',function(data){
-                    $("#txtDialog").hide(100);
-                    $("#txtValue").val("");
-                })
-                //////////////////////////////////////////////
-
-                function insertText(event) {
-                    $("#txtDialog").hide();
-                    lCtx.font = $("#txtFontStyle").val() + " " + $("#txtFontSize").val() + "px " + $("#txtFontFamily").val();
-                    ctx.font = $("#txtFontStyle").val() + " " + $("#txtFontSize").val() + "px " + $("#txtFontFamily").val();
-                    currentFont = ctx.font;
-                    // var pos = getMousePos(canvas, event);
-                    var pos = event;
-
-                    socket.emit('textValue',$("#txtValue").val())
-
-                    lCtx.fillText($("#txtValue").val(), pos.x, pos.y);
-                    tempDraw.push({
-                        txtData: $("#txtValue").val()
-                    });
-                    $("#txtValue").val("");
-                    mouseDown = true;
-
-                }
-
-                socket.on('textValue',function(data){
-                    // $("#txtDialog").hide();
-                    lCtx.font = $("#txtFontStyle").val() + " " + $("#txtFontSize").val() + "px " + $("#txtFontFamily").val();
-                    ctx.font = $("#txtFontStyle").val() + " " + $("#txtFontSize").val() + "px " + $("#txtFontFamily").val();
-                    currentFont = ctx.font;
-                    // var pos = getMousePos(canvas, event);
-                    var pos = event;
-                    lCtx.fillText(data, pos.x, pos.y);
-                    tempDraw.push({
-                        txtData: data
-                    });
-                    $("#txtValue").val("");
-                    mouseDown = true;
-                })
-
-
-
-                $(".color").click(function () {
-                    changeColor($(this).css("background-color"));
-                    $(".currentColor").css("background-color", $(this).css("background-color"));
-                    socket.emit('changeColor',$(this).css('background-color'));
-                });
-
-                socket.on('changeColor',function(data){
-                    changeColor(data);
-                    $(".currentColor").css("background-color",data);
-                })
-
+                document.querySelector('.cnvs').width = self.canvas.width;
+                document.querySelector('.cnvs').height = self.canvas.height;
+                self.fixWidth();
 
                 $("#save").click(function () {    
                     self.$vux.loading.show({
@@ -552,593 +406,530 @@
                     },3500)
                 });
 
-                $("#toolWidth").change(function () {
-                    changeSize($(this).val().toString(), tool);
-                    socket.emit('changeToolWidth',{value:$(this).val().toString(),tool:tool});
+                $(".tool").click(function () {        
+                    self.changeTool($(this).attr("id"));
+                    self.socket.emit('changeTool',$(this).attr('id'))
                 });
 
-                socket.on('changeToolWidth',function(data){
-                    changeSize(data.value,data.tool);
-                })
-
-                $('#showColor').on('touchend',function(){
-                    $('#colorContainer').toggle();
-                    socket.emit('showColor','showColor')
-                })
-                socket.on('showColor',function(data){
-                    $('#colorContainer').toggle();
-                })
+                $("#toolWidth").change(function () {
+                    self.changeSize($(this).val().toString(), self.tool);
+                    self.socket.emit('changeToolWidth',{value:$(this).val().toString(),tool:self.tool});
+                });
 
                 $("#clear").click(function () {
                     $('#confirm-box').show();  
                 });
 
-                socket.on('clearScreen',function(data){
-                    clear('canvas');
-                    clear('layer');
+                $("#txtInsert").click(function (e) {
+                    var pageX = e.pageX || e.targetTouches[0].pageX;
+                    var pageY = e.pageY || e.targetTouches[0].pageY;
+                    self.insertText({x:pageX,y:pageY});
+                    self.socket.emit('textInsert',{x:pageX,y:pageY})
                 });
 
-                $('#confirm-ok').on('click',function(){
-                    $(this).parents('#confirm-box').hide();        
-                    clear('canvas');
-                    clear('layer');
-                    socket.emit('clear');
-                    socket.emit('clearScreen','clearScreen');
+                /** socket.io **/
+                self.socket.on('touchstart', function (data) { 
+                    if($('.mobile-table').css('display') == 'block'){
+                        $('#colorContainer').hide();
+                    }
+                    self.makeMouseDown(data.x,data.y);           
+                });
+                self.socket.on('touchmove', function (data) {        
+                    self.makeMouseMove(data.x,data.y);           
                 });
 
-                $('#confirm-cancel').on('click',function(){
-                    $(this).parents('#confirm-box').hide();
-                    isConfirm = false;                    
-                });
-
-                function createImage(){
-                    var img = new Image();
-                    img.src = url;
-                    img.onload = drawImg;
-                    function drawImg(){
-                        // let ctx2 = document.querySelector('#canvasBg').getContext('2d');
-                        // ctx2.drawImage(img,0,0,canvas.width,canvas.height);
-                        
-                        ctx.drawImage(img,0,0,canvas.width,canvas.height)
-                        // lCtx.drawImage(img,0,0,canvas.width,canvas.height)
-                    }
-                }
-
-                function makeMouseMove(pageX,pageY) {
-                    if (mouseDown) {
-                        draw(pageX,pageY-60);
-                    }
-                }
-
-                function makeMouseDown(x,y) {
-                    mouseDown = true;
-                    // iX = getMousePos(canvas, event).x;
-                    // iY = getMousePos(canvas, event).y;
-
-                    // iX = getMousePos(canvas, event).x || event.originalEvent.targetTouches[0].pageX;
-                    // iY = getMousePos(canvas, event).y || event.originalEvent.targetTouches[0].pageY;
-                    iX = x;
-                    iY = y-60;
-
-                    if (tool === 'text') {
-                        //set the moving text on mouse down
-                        clear('layer');
-                        ctx.fillText(tempDraw[0].txtData, iX, iY);
-                        socket.emit('text', {
-                            text: tempDraw[0].txtData,
-                            x: iX,
-                            y: iY,
-                            color: currentColor,
-                            font: ctx.font
-                        })
-                        switchBoard('normal');
-                        changeTool('pencil');
-                    } else if (tool === 'line' || tool === 'rectangle' || tool === 'ellipse' || tool === 'select') {
-                        switchBoard('inverse');
-                    } else if (tool === 'eraser') {
-                        //make eraser independent ot currentLineSize and currentColor
-                        lCtx.strokeStyle = "black";
-                        lCtx.lineWidth = "1";
-
-                        ctx.fillStyle = "white";
-
-                        switchBoard('inverse');
-                    }
-
-                    tempDraw = [];
-                }
-
-                function changeTool(t) {
-
-                    tool = t;
-
-                    if (tool === 'pencil') {
-                        // changeCursor("url(images/brush.png), auto");
-                        $("#toolWidth").val(currentBrushSize);
-                        ctx.strokeStyle = currentColor;
-                        ctx.lineWidth = currentBrushSize;
-                    } else if (tool === 'eraser') {
-                        //change cursor
-                        // changeCursor("url(images/eraser.png), auto");
-                        $("#toolWidth").val(currentEraserSize);
-                        switchBoard('inverse');
-
-                    } else if (tool === 'line' || tool === 'rectangle' || tool === 'ellipse' || tool === 'select') {
-
-                        changeCursor("crosshair");
-                        ctx.lineWidth = currentLineSize;
-                        lCtx.lineWidth = currentLineSize;
-                        $("#toolWidth").val(currentLineSize);
-                        switchBoard('inverse');
-
-                    } else if (tool === 'text') {
-                        $("#txtDialog").show(100);
-                        changeCursor("text");
-                        ctx.fillStyle = currentColor;
-                        switchBoard('inverse');
-
-                        socket.emit('changeCursor','text')
-                        socket.emit('switchBoard','inverse')
-                    }
-
-                }
-
-                socket.on('changeCursor',function(data){
-                    changeCursor(data);
-                    ctx.fillStyle = currentColor;
+                self.socket.on('touchend', function (data) { 
+                    self.makeMouseUp();           
                 })
 
-                socket.on('switchBoard',function(data){
-                    switchBoard(data)
+                self.socket.on('changeTool',function(data){
+                    self.changeTool(data)
+                })
+                self.socket.on('textInsert',function(data){
+                    self.insertText(data)
+                })
+                self.socket.on('textCancel',function(data){
+                    $("#txtDialog").hide(100);
+                    $("#txtValue").val("");
+                })
+                self.socket.on('textValue',function(data){
+                    // $("#txtDialog").hide();
+                    self.lCtx.font = $("#txtFontStyle").val() + " " + $("#txtFontSize").val() + "px " + $("#txtFontFamily").val();
+                    self.ctx.font = $("#txtFontStyle").val() + " " + $("#txtFontSize").val() + "px " + $("#txtFontFamily").val();
+                    self.currentFont = self.ctx.font;
+                    // var pos = getMousePos(canvas, event);
+                    var pos = event;
+                    self.lCtx.fillText(data, pos.x, pos.y);
+                    self.tempDraw.push({
+                        txtData: data
+                    });
+                    $("#txtValue").val("");
+                    self.mouseDown = true;
+                })
+                self.socket.on('changeColor',function(data){
+                    self.changeColor(data);
+                    $(".currentColor").css("background-color",data);
+                })
+                self.socket.on('changeToolWidth',function(data){
+                    self.changeSize(data.value,data.tool);
+                })
+                self.socket.on('showColor',function(data){
+                    $('#colorContainer').toggle();
                 })
 
-                function makeMouseUp() {
-                    mouseDown = false;
-
-                    if (tool === 'pencil') {
-                        socket.emit("pencil", {
-                            boardData: tempDraw,
-                            brushSize: currentBrushSize,
-                            brushColor: currentColor
-                        });
-                    } else if (tool === 'eraser') {
-
-                        socket.emit('eraser', {
-                            eraserData: tempDraw,
-                            eraserSize: currentEraserSize
-                        });
-                        clear('layer');
-                        switchBoard('normal');
-
-                        lCtx.fillStyle = currentColor;
-                        ctx.fillStyle = currentColor;
-
-                    } else if (tool === 'line') {
-
-                        // draw in real canvas
-
-                        ctx.lineWidth = currentLineSize;
-                        ctx.beginPath();
-                        ctx.moveTo(iX, iY);
-                        ctx.lineTo(fX, fY);
-                        ctx.stroke();
-
-                        //hide the layer
-                        switchBoard('normal');
-                        clear('layer');
-
-
-                        tempDraw.push({
-                            x: iX,
-                            y: iY
-                        }); //store in array
-                        tempDraw.push({
-                            x: fX,
-                            y: fY
-                        }); //''''
-                        socket.emit('line', {
-                            points: tempDraw,
-                            lineSize: currentLineSize,
-                            lineColor: currentColor
-                        });
-
-
-                    } else if (tool === 'rectangle') {
-
-                        ctx.beginPath();
-                        ctx.rect(iX, iY, fX - iX, fY - iY);
-                        ctx.stroke();
-
-                        //hide the layer
-                        $("#canvas").css("z-index", 1);
-                        $("#layer").css("z-index", 0);
-                        clear('layer');
-
-
-                        tempDraw.push({
-                            x: iX,
-                            y: iY,
-                            w: (fX - iX),
-                            h: (fY - iY)
-                        }); //store in array
-                        socket.emit('rectangle', {
-                            points: tempDraw,
-                            lineSize: currentLineSize,
-                            lineColor: currentColor
-                        });
-
-
-                    } else if (tool === 'ellipse') {
-
-
-                        var radius = ((fX - iX) + (fY - iY)) / 4;
-
-                        ctx.beginPath();
-                        ctx.moveTo(iX, iY);
-                        ctx.bezierCurveTo(iX, fY, fX, fY, fX, iY);
-                        ctx.moveTo(iX, iY);
-                        ctx.bezierCurveTo(iX, fY - 2 * (fY - iY), fX, fY - 2 * (fY - iY), fX, iY);
-                        ctx.stroke();
-
-
-                        //hide the layer
-                        $("#canvas").css("z-index", 1);
-                        $("#layer").css("z-index", 0);
-                        clear('layer');
-
-
-                        socket.emit('ellipse', {
-                            points: {
-                                ix: iX,
-                                iy: iY,
-                                fx: fX,
-                                fy: fY,
-                                r: radius
-                            },
-                            lineSize: currentLineSize,
-                            lineColor: currentColor
-                        });
-
-
-                    } else if (tool === 'select') {
-
-                        tempDraw.push({
-                            selectedPart: ctx.getImageData(iX, iY, fX - iX, fY - iY),
-                            selected: true
-                        });
-
-                    }
-
-                    // clear the array when work is finished
-                    tempDraw = [];
-                }
-
-                function changeColor(color) {
-
-                    ctx.strokeStyle = color;
-                    lCtx.strokeStyle = color;
-                    ctx.fillStyle = color;
-                    lCtx.fillStyle = color;
-                    currentColor = color;
-
-                }
-
-                function changeCursor(cursor) {
-                    $(".cnvs").css("cursor", cursor);
-                }
-
-                function changeSize(size, tool) {
-
-                    if (tool === 'pencil') {
-                        ctx.lineWidth = size;
-                        currentBrushSize = size;
-
-                    } else if (tool === 'eraser') {
-                        // prevent eraser size from enlarging more than screen
-                        currentEraserSize = (10 * size) / 2;
-                    } else if (tool === 'line' || tool === 'rectangle' || tool === 'ellipse') {
-
-                        currentLineSize = size;
-                        ctx.lineWidth = size;
-                        lCtx.lineWidth = size;
-                    }
-
-                }
-
-                function clear(element) {
-                    //清除之前确认
-                    if (element === 'layer') {
-                        lCtx.clearRect(0, 0, width, height);
-                    } else if (element === 'canvas') {
-                        ctx.clearRect(0, 0, width, height);
-                        createImage();
-                    }
-                }
-
-                function resetLineWidth() {
-                    //reset default line width, stroke style, fill style
-                    if (tool === 'line' || tool === 'rectangle' || tool === 'ellipse') {
-                        ctx.lineWidth = currentLineSize;
-                        lCtx.lineWidth = currentLineSize;
-                    } else if (tool === 'pencil') {
-                        ctx.lineWidth = currentBrushSize;
-                        lCtx.lineWidth = currentBrushSize;
-                    }
-
-                    lCtx.strokeStyle = currentColor;
-                    ctx.strokeStyle = currentColor;
-
-                }
-
-                function switchBoard(type) {
-                    if (type === 'normal') {
-                        $("#canvas").css("z-index", 1);
-                        $("#layer").css("z-index", 0);
-                    } else if (type === 'inverse') {
-                        $("#canvas").css("z-index", 0);
-                        $("#layer").css("z-index", 1);
-                    }
-                }
-
-                function getMousePos(canvas, evt) {
-
-                    return {
-                        x: evt.pageX,
-                        y: evt.pageY
-                    };
-
-                }
-
-                function draw(pageX,pageY) {
-
-                    // var pos = getMousePos(canvas, e);
-
-                    // var pos = {
-                    //         x:e.pageX || e.originalEvent.targetTouches[0].pageX,
-                    //         y:e.pageY || e.originalEvent.targetTouches[0].pageY
-                    //     }
-
-                    var pos = {
-                        x:pageX,
-                        y:pageY
-                    }
-
-                    if (tool === "pencil") {
-
-                        tempDraw.push({
-                            x: iX,
-                            y: iY
-                        });
-                        fX = pos.x;
-                        fY = pos.y;
-                        tempDraw.push({
-                            x: fX,
-                            y: fY
-                        });
-                        ctx.beginPath();
-                        ctx.moveTo(iX, iY);
-                        ctx.lineTo(fX, fY);
-                        ctx.stroke();
-                        iX = fX;
-                        iY = fY;
-
-                    } else if (tool === "eraser") {
-
-                        clear('layer');
-                        lCtx.beginPath();
-                        lCtx.arc(pos.x + 8, pos.y + 8, currentEraserSize, 0, 2 * Math.PI);
-                        lCtx.stroke();
-
-                        ctx.beginPath();
-
-                        var into = $("#canvas2")[0];
-                        var ctx2 = into.getContext('2d');
-                        var image = new Image();
-                        image.src = url;
-                        ctx2.drawImage(image,0,0,width,height);
-                        var pattern = ctx.createPattern(into, "no-repeat");
-                        ctx.fillStyle = pattern;
-                        
-                        ctx.arc(pos.x + 8, pos.y + 8, currentEraserSize, 0, 2 * Math.PI);
-                        ctx.fill();
-
-                        tempDraw.push({
-                            x: pos.x + 8,
-                            y: pos.y + 8
-                        });
-
-                    } else if (tool === 'line') {
-
-                        clear('layer');
-                        fX = pos.x;
-                        fY = pos.y;
-                        lCtx.beginPath();
-                        lCtx.moveTo(iX, iY);
-                        lCtx.lineTo(fX, fY);
-                        lCtx.stroke();
-                    } else if (tool === 'rectangle') {
-
-                        clear('layer');
-                        fX = pos.x;
-                        fY = pos.y;
-                        lCtx.beginPath();
-                        lCtx.rect(iX, iY, fX - iX, fY - iY);
-                        lCtx.stroke();
-
-                    } else if (tool === 'ellipse') {
-
-                        clear('layer');
-                        fX = pos.x;
-                        fY = pos.y;
-
-                        lCtx.beginPath();
-                        lCtx.moveTo(iX, iY);
-                        lCtx.bezierCurveTo(iX, fY, fX, fY, fX, iY); // upper curve
-                        lCtx.moveTo(iX, iY);
-                        lCtx.bezierCurveTo(iX, fY - 2 * (fY - iY), fX, fY - 2 * (fY - iY), fX, iY); // lower curve
-                        lCtx.stroke();
-
-                    } else if (tool === 'text') {
-
-                        clear('layer');
-                        lCtx.fillText(tempDraw[0].txtData, pos.x, pos.y);
-                    } else if (tool === 'select') {
-
-                        clear('layer');
-
-                        if (tempDraw.length === 0 && mouseDown) { // if nothing is selected
-
-                            fX = pos.x;
-                            fY = pos.y;
-                            lCtx.lineWidth = 0.1;
-                            lCtx.setLineDash([4, 4]);
-                            lCtx.beginPath();
-                            lCtx.rect(iX, iY, fX - iX, fY - iY);
-                            lCtx.stroke();
-
-                        }
-
-                        //already selected
-                        else {
-
-                            lCtx.putImageData(tempDraw[0].selectedPart, pos.x, pos.y);
-                        }
-
-                    }
-
-                }
-
-                socket.on('pencil', function (data) {
-
-                    ctx.lineWidth = data.brushSize;
-                    ctx.strokeStyle = data.brushColor;
-
-                    for (var i = 0; i <= data.boardData.length - 2; i += 2) {
-                        iX = data.boardData[i]['x'];
-                        iY = data.boardData[i]['y'];
-                        fX = data.boardData[parseInt(i + 1)]['x'];
-                        fY = data.boardData[parseInt(i + 1)]['y'];
-
-                        ctx.beginPath();
-                        ctx.moveTo(iX, iY);
-                        ctx.lineTo(fX, fY);
-                        ctx.stroke();
-
-                    }
-
-                    resetLineWidth();
-
+                self.socket.on('clearScreen',function(data){
+                    self.clear('canvas');
+                    self.clear('layer');
                 });
+            },
+            createImage(url){
+                const self = this;
+                var img = new Image();
+                img.src = url;
+                img.onload = drawImg;
+                function drawImg(){                     
+                    self.ctx.drawImage(img,0,0,self.canvas.width,self.canvas.height)
+                }
+            },
 
-                socket.on('eraser', function (data) {
+            drawStart(event){
+                const self = this;
+                if($('.mobile-table').css('display') == 'block'){
+                    $('#colorContainer').hide();
+                }
+                var pageX = event.pageX || event.targetTouches[0].pageX;
+                var pageY = event.pageY || event.targetTouches[0].pageY;
 
-                    ctx.fillStyle = 'white';
+                self.makeMouseDown(pageX,pageY);
+                self.socket.emit('touchstart', {x:pageX,y:pageY});                 
+            },
+            drawMove(event){
+                const self = this;
 
-                    for (var i = 0; i < data.eraserData.length; i++) {
-                        ctx.beginPath();
-                        ctx.arc(data.eraserData[i].x, data.eraserData[i].y, data.eraserSize, 0, 2 * Math.PI);
-                        ctx.fill();
+                var pageX = event.pageX || event.targetTouches[0].pageX;
+                var pageY = event.pageY || event.targetTouches[0].pageY;
+                self.makeMouseMove(pageX,pageY);
+                self.socket.emit('touchmove', {x:pageX,y:pageY})                
+            },
+            drawEnd(){
+                const self = this;
+                self.makeMouseUp();
+                self.socket.emit('touchend', 'touchend');                  
+            },
+            makeMouseDown(x,y){
+                const self = this;
+                self.mouseDown = true;
+                self.iX = x;
+                self.iY = y-60;
 
+                if (self.tool === 'text') {
+                    //set the moving text on mouse down
+                    self.clear('layer');
+                    self.ctx.fillText(self.tempDraw[0].txtData, self.iX, self.iY);
+                    self.socket.emit('text', {
+                        text: self.tempDraw[0].txtData,
+                        x: self.iX,
+                        y: self.iY,
+                        color: self.currentColor,
+                        font: self.ctx.font
+                    })
+                    self.switchBoard('normal');
+                    self.changeTool('pencil');
+                } else if (self.tool === 'line' || self.tool === 'rectangle' || self.tool === 'ellipse' || self.tool === 'select') {
+                    console.log('mousedown line')
+                    self.switchBoard('inverse');
+                } else if (self.tool === 'eraser') {
+                    //make eraser independent ot currentLineSize and currentColor
+                    self.lCtx.strokeStyle = "black";
+                    self.lCtx.lineWidth = "1";
+
+                    self.ctx.fillStyle = "white";
+
+                    self.switchBoard('inverse');
+                }
+                self.tempDraw = [];
+            },
+            clear(element){
+                const self = this;
+                //清除之前确认
+                if (element === 'layer') {
+                    self.lCtx.clearRect(0, 0, self.width, self.height);
+                } else if (element === 'canvas') {
+                    self.ctx.clearRect(0, 0, self.width, self.height);
+                    self.createImage(self.imageUrl);
+                    console.log('clear: imageUr',self.imageUrl)
+                }
+            },
+            switchBoard(type) {
+                const self = this;
+                if (type === 'normal') {
+                    $("#canvas").css("z-index", 1);
+                    $("#layer").css("z-index", 0);
+                } else if (type === 'inverse') {
+                    $("#canvas").css("z-index", 0);
+                    $("#layer").css("z-index", 1);
+                }
+            },
+            changeTool(t) {
+                const self = this;
+                self.tool = t;
+                console.log('tool:',self.tool)
+
+                if (self.tool === 'pencil') {
+                    // changeCursor("url(images/brush.png), auto");
+                    $("#toolWidth").val(self.currentBrushSize);
+                    self.ctx.strokeStyle = self.currentColor;
+                    self.ctx.lineWidth = self.currentBrushSize;
+                } else if (self.tool === 'eraser') {
+                    //change cursor
+                    // changeCursor("url(images/eraser.png), auto");
+                    $("#toolWidth").val(self.currentEraserSize);
+                    self.switchBoard('inverse');
+
+                } else if (self.tool === 'line' || self.tool === 'rectangle' || self.tool === 'ellipse' || self.tool === 'select') {
+
+                    // self.changeCursor("crosshair");
+                    self.ctx.lineWidth = self.currentLineSize;
+                    self.lCtx.lineWidth = self.currentLineSize;
+
+                    $("#toolWidth").val(self.currentLineSize);
+                    self.switchBoard('inverse');
+
+                } else if (self.tool === 'text') {
+                    $("#txtDialog").show(100);
+                    self.changeCursor("text");
+                    self.ctx.fillStyle = self.currentColor;
+                    self.switchBoard('inverse');
+
+                    self.socket.emit('changeCursor','text')
+                    self.socket.emit('switchBoard','inverse')
+                }
+            },
+            makeMouseUp() {
+                const self = this;
+                self.mouseDown = false;
+
+                if (self.tool === 'pencil') {
+                    self.socket.emit("pencil", {
+                        boardData: self.tempDraw,
+                        brushSize: self.currentBrushSize,
+                        brushColor: self.currentColor
+                    });
+                } else if (self.tool === 'eraser') {
+
+                    self.socket.emit('eraser', {
+                        eraserData: self.tempDraw,
+                        eraserSize: self.currentEraserSize
+                    });
+                    self.clear('layer');
+                    self.switchBoard('normal');
+
+                    self.lCtx.fillStyle = self.currentColor;
+                    self.ctx.fillStyle = self.currentColor;
+
+                } else if (self.tool === 'line') {
+
+                    // draw in real canvas
+
+                    self.ctx.lineWidth = self.currentLineSize;
+                    self.ctx.beginPath();
+                    self.ctx.moveTo(self.iX, self.iY);
+                    self.ctx.lineTo(self.fX, self.fY);
+                    self.ctx.stroke();
+
+                    //hide the layer
+                    self.switchBoard('normal');
+                    self.clear('layer');
+
+
+                    self.tempDraw.push({
+                        x: self.iX,
+                        y: self.iY
+                    }); //store in array
+                    self.tempDraw.push({
+                        x: self.fX,
+                        y: self.fY
+                    }); //''''
+                    self.socket.emit('line', {
+                        points: self.tempDraw,
+                        lineSize: self.currentLineSize,
+                        lineColor: self.currentColor
+                    });
+
+
+                } else if (self.tool === 'rectangle') {
+
+                    self.ctx.beginPath();
+                    self.ctx.rect(self.iX, self.iY, self.fX - self.iX, self.fY - self.iY);
+                    self.ctx.stroke();
+
+                    //hide the layer
+                    $("#canvas").css("z-index", 1);
+                    $("#layer").css("z-index", 0);
+                    self.clear('layer');
+
+
+                    self.tempDraw.push({
+                        x: self.iX,
+                        y: self.iY,
+                        w: (self.fX - self.iX),
+                        h: (self.fY - self.iY)
+                    }); //store in array
+                    self.socket.emit('rectangle', {
+                        points: self.tempDraw,
+                        lineSize: self.currentLineSize,
+                        lineColor: self.currentColor
+                    });
+
+
+                } else if (self.tool === 'ellipse') {
+
+
+                    var radius = ((self.fX - self.iX) + (self.fY - self.iY)) / 4;
+
+                    self.ctx.beginPath();
+                    self.ctx.moveTo(self.iX, self.iY);
+                    self.ctx.bezierCurveTo(self.iX, self.fY, self.fX, self.fY, self.fX, self.iY);
+                    self.ctx.moveTo(self.iX, self.iY);
+                    self.ctx.bezierCurveTo(self.iX, self.fY - 2 * (self.fY - self.iY), self.fX, self.fY - 2 * (self.fY - self.iY), self.fX, self.iY);
+                    self.ctx.stroke();
+
+
+                    //hide the layer
+                    $("#canvas").css("z-index", 1);
+                    $("#layer").css("z-index", 0);
+                    self.clear('layer');
+
+
+                    self.socket.emit('ellipse', {
+                        points: {
+                            ix: self.iX,
+                            iy: self.iY,
+                            fx: self.fX,
+                            fy: self.fY,
+                            r: radius
+                        },
+                        lineSize: self.currentLineSize,
+                        lineColor: self.currentColor
+                    });
+
+
+                } else if (self.tool === 'select') {
+
+                    self.tempDraw.push({
+                        selectedPart: self.ctx.getImageData(self.iX, self.iY, self.fX - self.iX, self.fY - self.iY),
+                        selected: true
+                    });
+
+                }
+                // clear the array when work is finished
+                self.tempDraw = [];
+            },
+            makeMouseMove(pageX,pageY) {
+                const self = this;
+                if (self.mouseDown) {
+                    self.draw(pageX,pageY-60);
+                }
+            },
+            draw(pageX,pageY) {
+                const self = this;
+                var pos = {
+                    x:pageX,
+                    y:pageY
+                }
+                if (self.tool === "pencil") {
+                    self.tempDraw.push({
+                        x: self.iX,
+                        y: self.iY
+                    });
+                    self.fX = pos.x;
+                    self.fY = pos.y;
+                    self.tempDraw.push({
+                        x: self.fX,
+                        y: self.fY
+                    });
+                    self.ctx.beginPath();
+                    self.ctx.moveTo(self.iX, self.iY);
+                    self.ctx.lineTo(self.fX, self.fY);
+                    self.ctx.stroke();
+                    self.iX = self.fX;
+                    self.iY = self.fY;
+
+                } else if (self.tool === "eraser") {
+
+                    self.clear('layer');
+                    self.lCtx.beginPath();
+                    self.lCtx.arc(pos.x + 8, pos.y + 8, self.currentEraserSize, 0, 2 * Math.PI);
+                    self.lCtx.stroke();
+
+                    self.ctx.beginPath();
+
+                    var into = $("#canvas2")[0];
+                    var ctx2 = into.getContext('2d');
+                    var image = new Image();
+                    image.src = self.imageUrl;
+
+                    ctx2.drawImage(image,0,0,self.canvas.width,self.canvas.height);
+                    var pattern = self.ctx.createPattern(into, "no-repeat");
+                    self.ctx.fillStyle = pattern;
+
+                    self.ctx.arc(pos.x + 8, pos.y + 8, self.currentEraserSize, 0, 2 * Math.PI);
+                    self.ctx.fill();
+
+                    self.tempDraw.push({
+                        x: pos.x + 8,
+                        y: pos.y + 8
+                    });
+
+                } else if (self.tool === 'line') {
+
+                    self.clear('layer');
+                    self.fX = pos.x;
+                    self.fY = pos.y;
+                    self.lCtx.beginPath();
+                    self.lCtx.moveTo(self.iX, self.iY);
+                    self.lCtx.lineTo(self.fX, self.fY);
+                    self.lCtx.stroke();
+
+                } else if (self.tool === 'rectangle') {
+
+                    self.clear('layer');
+                    self.fX = pos.x;
+                    self.fY = pos.y;
+                    self.lCtx.beginPath();
+                    self.lCtx.rect(self.iX, self.iY, self.fX - self.iX, self.fY - self.iY);
+                    self.lCtx.stroke();
+
+                } else if (self.tool === 'ellipse') {
+
+                    self.clear('layer');
+                    self.fX = pos.x;
+                    self.fY = pos.y;
+
+                    self.lCtx.beginPath();
+                    self.lCtx.moveTo(self.iX, self.iY);
+                    self.lCtx.bezierCurveTo(self.iX, self.fY, self.fX, self.fY, self.fX, self.iY); // upper curve
+                    self.lCtx.moveTo(self.iX, self.iY);
+                    self.lCtx.bezierCurveTo(self.iX, self.fY - 2 * (self.fY - self.iY), self.fX, self.fY - 2 * (self.fY - self.iY), self.fX, self.iY); // lower curve
+                    self.lCtx.stroke();
+
+                } else if (self.tool === 'text') {
+
+                    self.clear('layer');
+                    self.lCtx.fillText(self.tempDraw[0].txtData, pos.x, pos.y);
+                } else if (self.tool === 'select') {
+
+                    self.clear('layer');
+
+                    if (self.tempDraw.length === 0 && self.mouseDown) { // if nothing is selected
+
+                        self.fX = pos.x;
+                        self.fY = pos.y;
+                        self.lCtx.lineWidth = 0.1;
+                        self.lCtx.setLineDash([4, 4]);
+                        self.lCtx.beginPath();
+                        self.lCtx.rect(self.iX, self.iY, self.fX - self.iX, self.fY - self.iY);
+                        self.lCtx.stroke();
                     }
+                    //already selected
+                    else {
+                        self.lCtx.putImageData(self.tempDraw[0].selectedPart, pos.x, pos.y);
+                    }
+                }
+            },
+            changeCursor(cursor) {
+                $(".cnvs").css("cursor", cursor);
+            },
+            changeSize(size, tool) {
+                const self = this;
+                if (self.tool === 'pencil') {
+                    self.ctx.lineWidth = size;
+                    self.currentBrushSize = size;
 
-                });
+                } else if (self.tool === 'eraser') {
+                    // prevent eraser size from enlarging more than screen
+                   self.currentEraserSize = (10 * size) / 2;
+                } else if (self.tool === 'line' || self.tool === 'rectangle' || self.tool === 'ellipse') {
 
-                socket.on('line', function (data) {
-
-                    ctx.strokeStyle = data.lineColor;
-                    ctx.lineWidth = data.lineSize;
-                    ctx.beginPath();
-                    ctx.moveTo(data.points[0].x, data.points[0].y);
-                    ctx.lineTo(data.points[1].x, data.points[1].y);
-                    ctx.stroke();
-
-                    resetLineWidth();
-
-                });
-
-                socket.on('rectangle', function (data) {
-
-                    ctx.strokeStyle = data.lineColor;
-                    ctx.lineWidth = data.lineSize;
-                    ctx.beginPath();
-                    ctx.rect(data.points[0].x, data.points[0].y, data.points[0].w, data.points[0].h);
-                    ctx.stroke();
-
-                    resetLineWidth();
-
-                });
-
-                socket.on('ellipse', function (data) {
-
-                    ctx.strokeStyle = data.lineColor;
-                    ctx.lineWidth = data.lineSize;
-                    ctx.beginPath();
-                    ctx.moveTo(data.points.ix, data.points.iy);
-                    ctx.bezierCurveTo(data.points.ix, data.points.fy, data.points.fx, data.points.fy, data.points.fx, data.points.iy);
-                    ctx.moveTo(data.points.ix, data.points.iy);
-                    ctx.bezierCurveTo(data.points.ix, data.points.fy - 2 * (data.points.fy - data.points.iy), data.points.fx, data.points.fy - 2 * (data.points.fy - data.points.iy), data.points.fx, data.points.iy);
-                    ctx.stroke();
-
-                    resetLineWidth();
-
-                });
-
-                socket.on('text', function (data) {
-
-                    //set passed values
-                    ctx.font = data.font;
-                    ctx.fillStyle = data.color;
-                    ctx.fillText(data.text, data.x, data.y);
-
-                    //reset default values
-                    ctx.font = currentFont;
-                    ctx.fillStyle = currentColor;
-                });
-
-                socket.on('clear', function () {
-                    ctx.clearRect(0, 0, width, height);
-                });
-
-                function setDefaults() {
-
-                    //set defaults
-                    changeColor("black");
-                    changeSize(2, 'pencil');
-                    changeSize(2, 'line');
-                    changeSize(10, 'eraser');
-                    changeTool("pencil");
-
-                    //make brush smooth
-                    ctx.lineJoin = 'round';
-                    ctx.lineCap = 'round';
-                    lCtx.lineJoin = 'round';
-                    lCtx.lineCap = 'round';
-
-                    $("#txtDialog").hide();
+                    self.currentLineSize = size;
+                    self.ctx.lineWidth = size;
+                    self.lCtx.lineWidth = size;
+                }
+            },
+            resetLineWidth() {
+                const self = this;
+                //reset default line width, stroke style, fill style
+                if (self.tool === 'line' || self.tool === 'rectangle' || self.tool === 'ellipse') {
+                    self.ctx.lineWidth = self.currentLineSize;
+                    self.lCtx.lineWidth = self.currentLineSize;
+                } else if (self.tool === 'pencil') {
+                    self.ctx.lineWidth = self.currentBrushSize;
+                    self.lCtx.lineWidth = self.currentBrushSize;
                 }
 
-                // $(window).resize(function () {
-                //     fixWidth();
-                // });
+                self.lCtx.strokeStyle = self.currentColor;
+                self.ctx.strokeStyle = self.currentColor;
+            },
+            getMousePos(canvas, evt) {
+                return {
+                    x: evt.pageX,
+                    y: evt.pageY
+                };
+            },
+            fixWidth() {
+                const self = this;
+                self.width = $(window).width();
+                self.height = $(window).height()-60;
 
-                function fixWidth() {
+                $(".cnvs").attr("width", self.width);
+                $(".cnvs").attr("height", self.height);
 
-                    width = $(window).width();
-                    height = $(window).height()-60;
+                //on resize all settings are cleared
+                self.setDefaults();
+            },
+            setDefaults() {
+                const self = this;
+                //set defaults
+                self.changeColor("black");
+                self.changeSize(2, 'pencil');
+                self.changeSize(2, 'line');
+                self.changeSize(10, 'eraser');
+                self.changeTool("pencil");
 
-                    $(".cnvs").attr("width", width);
-                    $(".cnvs").attr("height", height);
+                //make brush smooth
+                self.ctx.lineJoin = 'round';
+                self.ctx.lineCap = 'round';
+                self.lCtx.lineJoin = 'round';
+                self.lCtx.lineCap = 'round';
 
-                    //on resize all settings are cleared
-                    setDefaults();
+                $("#txtDialog").hide();
+            },
+            changeColor(color) {
+                const self = this;
+                self.ctx.strokeStyle = color;
+                self.lCtx.strokeStyle = color;
+                self.ctx.fillStyle = color;
+                self.lCtx.fillStyle = color;
+                self.currentColor = color;
+            },
+            insertText(event) {
+                const self = this;
+                $("#txtDialog").hide();
+                self.lCtx.font = $("#txtFontStyle").val() + " " + $("#txtFontSize").val() + "px " + $("#txtFontFamily").val();
+                self.ctx.font = $("#txtFontStyle").val() + " " + $("#txtFontSize").val() + "px " + $("#txtFontFamily").val();
+                self.currentFont = self.ctx.font;
+                // var pos = getMousePos(canvas, event);
+                var pos = event;
 
-                }
+                self.socket.emit('textValue',$("#txtValue").val())
 
-                fixWidth();
-
-                $(window).on('beforeunload', function () {
-                    socket.close();
+                self.lCtx.fillText($("#txtValue").val(), pos.x, pos.y);
+                self.tempDraw.push({
+                    txtData: $("#txtValue").val()
                 });
+                $("#txtValue").val("");
+                self.mouseDown = true;
+
             }
         }
     }

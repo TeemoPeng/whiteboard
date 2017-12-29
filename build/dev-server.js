@@ -124,24 +124,25 @@ io.sockets.on('connection', function(socket) {
     var user = '';
 
     socket.on('join', function (userName) {
+        console.log('userName:',userName)
         user = userName;
           // 将用户昵称加入房间名单中
-          if (!roomInfo[roomID]) {
-              roomInfo[roomID] = [];
-          }
+        if (!roomInfo[roomID]) {
+            roomInfo[roomID] = [];
+            return;
+        }
         roomInfo[roomID].push(user);
+        console.log('roomInfo:',roomInfo)
         socket.join(roomID);    // 加入房间
         // 通知房间内人员
-        socketIO.to(roomID).emit('sys', user + '加入了房间', roomInfo[roomID]);  
+        io.to(roomID).emit('sys', user + '加入了房间', roomInfo[roomID]);  
         console.log(user + '加入了' + roomID);
       });
 
     socket.on('leave', function () {
         socket.emit('disconnect');
     });
-
-    console.log('>>>>>>> url:',url)
-    console.log('>>>>>>> roomID:',roomID);
+    console.log('>>>>>>> socketId:',socket.id);
 
     socket.on('touchstart',function(data){
         socket.broadcast.emit('touchstart',data);

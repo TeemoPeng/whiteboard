@@ -59,13 +59,7 @@ export default {
 </script>
 
 <style>
-html,body{
-  height: 100%;
-  width: 100%;
-  overflow: hidden;
-  background: #ebeced;
-  font-family: '微软雅黑'
-}
+html,body{height: 100%;width: 100%;overflow: hidden;background: #ebeced;font-family: '微软雅黑'}
 .clear {
   clear: both;
 }
