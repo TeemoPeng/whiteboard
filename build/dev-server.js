@@ -121,83 +121,120 @@ io.sockets.on('connection', function(socket) {
 
     var splited = url.split('/');
     var roomID = splited[splited.length - 1];   // 获取房间ID
+    var roomID = '';
     var user = '';
 
-    socket.on('join', function (userName) {
-        console.log('userName:',userName)
+    // socket.on('join', function (userName) {
+    //     console.log('这里有个:',userName)
+    //     user = userName;
+    //       // 将用户昵称加入房间名单中
+    //     if (!roomInfo[roomID]) {
+    //         roomInfo[roomID] = [];
+    //         return;
+    //     }
+
+    //     roomInfo[roomID].push(user);
+    //     socket.join(roomID);    // 加入房间
+    //     // 通知房间内人员
+    //     io.to(roomID).emit('sys', user + '加入了房间', roomInfo[roomID]);  
+    //     console.log(user + '加入了' + roomID);
+    // });
+     socket.on('join', function (userName) {
+        console.log('这里有个:',userName)
         user = userName;
           // 将用户昵称加入房间名单中
-        if (!roomInfo[roomID]) {
-            roomInfo[roomID] = [];
+        if (!roomInfo[user]) {
+            roomInfo[user] = [];
             return;
         }
-        roomInfo[roomID].push(user);
-        console.log('roomInfo:',roomInfo)
-        socket.join(roomID);    // 加入房间
+
+        roomInfo[user].push(user);
+        socket.join(user);    // 加入房间
+
         // 通知房间内人员
-        io.to(roomID).emit('sys', user + '加入了房间', roomInfo[roomID]);  
-        console.log(user + '加入了' + roomID);
-      });
+        // io.to(user).emit('sys', user + '加入了房间', roomInfo[user]);  
+
+        socket.on('touchstart',function(data){
+            io.to(user).emit('touchstart',data)
+        })
+
+        socket.on('touchmove',function(data){
+            io.to(user).emit('touchmove',data);
+        })
+        socket.on('touchend',function(data){
+            io.to(user).emit('touchend',data);
+        })
+
+        socket.on('changeTool',function(data){
+            io.to(user).emit('changeTool',data);
+        })
+
+        socket.on('clearScreen',function(data){
+            io.to(user).emit('clearScreen',data);
+        })
+
+        socket.on('showColor',function(data){
+            io.to(user).emit('showColor',data);
+        })
+
+        socket.on('changeColor',function(data){
+            io.to(user).emit('changeColor',data);
+        })
+
+        socket.on('changeCursor',function(data){
+            io.to(user).emit('changeCursor',data);
+        })
+
+        socket.on('switchBoard',function(data){
+            io.to(user).emit('switchBoard',data);
+        })
+
+        socket.on('textInsert',function(data){
+            io.to(user).emit('textInsert',data);
+        })
+
+        socket.on('textValue',function(data){
+            io.to(user).emit('textValue',data);
+        })
+
+        socket.on('changeToolWidth',function(data){
+            io.to(user).emit('changeToolWidth',data);
+        })
+
+        socket.on('textCancel',function(data){
+            io.to(user).emit('textCancel',data);
+        })
+
+        socket.on('hideBoard',function(data){
+            io.to(user).emit('hideBoard',data)
+        })
+    });
 
     socket.on('leave', function () {
         socket.emit('disconnect');
     });
-    console.log('>>>>>>> socketId:',socket.id);
 
-    socket.on('touchstart',function(data){
-        socket.broadcast.emit('touchstart',data);
-    })
+    socket.on('disconnect', function () {
+        // 从房间名单中移除
+        var index = roomInfo[user].indexOf(user);
+        if (index !== -1) {
+            roomInfo[user].splice(index, 1);
+        }
 
-    socket.on('touchmove',function(data){
-        socket.broadcast.emit('touchmove',data);
-    })
-    socket.on('touchend',function(data){
-        socket.broadcast.emit('touchend',data);
-    })
+        socket.leave(user);    // 退出房间
+        io.to(user).emit('sys', user + '退出了房间', roomInfo[user]);      
+        console.log(user + '退出了' + user);
+    });
 
-    socket.on('changeTool',function(data){
-        socket.broadcast.emit('changeTool',data);
-    })
-
-    socket.on('clearScreen',function(data){
-        socket.broadcast.emit('clearScreen',data);
-    })
-
-    socket.on('showColor',function(data){
-        socket.broadcast.emit('showColor',data);
-    })
-
-    socket.on('changeColor',function(data){
-        socket.broadcast.emit('changeColor',data);
-    })
-
-    socket.on('changeCursor',function(data){
-        socket.broadcast.emit('changeCursor',data);
-    })
-
-    socket.on('switchBoard',function(data){
-        socket.broadcast.emit('switchBoard',data);
-    })
-
-    socket.on('textInsert',function(data){
-        socket.broadcast.emit('textInsert',data);
-    })
-
-    socket.on('textValue',function(data){
-        socket.broadcast.emit('textValue',data);
-    })
-
-    socket.on('changeToolWidth',function(data){
-        socket.broadcast.emit('changeToolWidth',data);
-    })
-
-    socket.on('textCancel',function(data){
-        socket.broadcast.emit('textCancel',data);
-    })
-
-    socket.on('hideBoard',function(data){
-        socket.broadcast.emit('hideBoard',data)
-    })
+    // 接收用户消息,发送相应的房间
+    socket.on('message', function (msg) {
+      // 验证如果用户不在房间内则不给发送
+      if (roomInfo[roomID].indexOf(user) === -1) {  
+          return false;
+      }
+      io.to(roomID).emit('msg', user, msg);
+    });
+        
 });
 /******socket.io*******/
 

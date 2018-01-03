@@ -1,7 +1,7 @@
 <template>
     <div class="white-board" v-show='show'>
-        <div id="boardToolContainer" class="boardToolContainer" v-if='showToolBar'>
-            <div class="left-tool" >
+        <div id="boardToolContainer" class="boardToolContainer">
+            <div class="left-tool">
                 <div id="pencil" title="Brush" class="boardBtn tool"><i class="iconfont icon-pencil"></i></div>
                 <div id="eraser" title="Eraser" class="boardBtn tool"><i class="iconfont icon-eraser"></i></div>
                 <div id="clear" title="Clear Board" class="boardBtn"><i class="iconfont icon-refresh"></i></div>
@@ -32,7 +32,7 @@
                 <div class="boardBtn tool">
                     <span id="save" title="Save to local storage" class="boardBtn"><i class="iconfont icon-save"></i></span>
                 </div>   
-                <div class="boardBtn" v-if='showCloseIcon'>
+                <div class="boardBtn">
                     <i class="iconfont icon-close" id='closeBoard'></i>
                 </div>             
             </div> 
@@ -333,23 +333,10 @@
                 currentLineSize:0,
                 dataUrl:'',
                 show:this.isShow,
-                option:null,
-                socket:null,
-                roomId:'',
             }
         },
         mounted(){
-            const self = this; 
-            self.init();            
-
-            self.roomId = self.$route.params.id;
-            self.socket.on('connect', function () {                
-                self.socket.emit('join', self.roomId);
-            });
-
-            // self.socket.on('sys',function(sysMsg, users){
-            //     console.log('sb',sysMsg)
-            // })
+            const self = this;              
         },
         props:{
             isShow:{
@@ -363,27 +350,10 @@
             showMenu:{
                 type:Boolean,
                 default:true
-            },
-            tool:{
-                type:String,
-                default:'pencil'
-            },
-            socketHost:{
-                type:String,
-                default:'http://localhost:8080'
-            },
-            showCloseIcon:{
-                type:Boolean,
-                default:false
-            },
-            showToolBar:{
-                type:Boolean,
-                default:true
             }
-            
         },
         methods:{
-            init(){
+            init(option){
                 const self = this;
                 var canvas,canvasBg;
                 var currentLineSize;
@@ -401,7 +371,7 @@
                 var lCtx = layer.getContext('2d');
                 var tool, currentColor, currentBrushSize, currentEraserSize, currentFont;
                 var tempDraw = [];
-                self.socket = io(self.socketHost);
+                var socket = io(option.socketHost);
 
                 var mouseDown = false;
                 var iX, iY, fX, fY;
@@ -416,10 +386,10 @@
                         var pageY = event.pageY || event.originalEvent.targetTouches[0].pageY;
 
                         makeMouseDown(pageX,pageY);
-                        self.socket.emit('touchstart', {x:pageX,y:pageY});
+                        socket.emit('touchstart', {x:pageX,y:pageY});
                     }
                 )
-                self.socket.on('touchstart', function (data) { 
+                socket.on('touchstart', function (data) { 
                     if($('.mobile-table').css('display') == 'block'){
                         $('#colorContainer').hide();
                     }
@@ -428,19 +398,21 @@
 
                 $('#closeBoard').on('click',function(){
                     self.show = false;
+                    console.log('show:',self.show);
                     self.$emit('showBoard',false);
-                    // self.socket.emit('hideBoard',false);                    
+                    // socket.emit('hideBoard',false);                    
                 });
 
-                self.socket.on('hideBoard',function(data){
+                socket.on('hideBoard',function(data){
+                    console.log('hideBoard:',data);
                     self.show = data;
                 })
 
                 $(".cnvs").on('mouseup touchend',function(){
                     makeMouseUp();    
-                    self.socket.emit('touchend', 'touchend');   
+                    socket.emit('touchend', 'touchend');   
                 });   
-                self.socket.on('touchend', function (data) { 
+                socket.on('touchend', function (data) { 
                     makeMouseUp();           
                 }) 
 
@@ -449,19 +421,19 @@
                     var pageX = event.pageX || event.originalEvent.targetTouches[0].pageX;
                     var pageY = event.pageY || event.originalEvent.targetTouches[0].pageY;
                     makeMouseMove(pageX,pageY);
-                    self.socket.emit('touchmove', {x:pageX,y:pageY})
+                    socket.emit('touchmove', {x:pageX,y:pageY})
                 });
 
-                self.socket.on('touchmove', function (data) {        
+                socket.on('touchmove', function (data) {        
                     makeMouseMove(data.x,data.y);           
                 })
 
                 $(".tool").click(function () {        
                     changeTool($(this).attr("id"));
-                    self.socket.emit('changeTool',$(this).attr('id'))
+                    socket.emit('changeTool',$(this).attr('id'))
                 });
 
-                self.socket.on('changeTool',function(data){
+                socket.on('changeTool',function(data){
                     changeTool(data)
                 })
 
@@ -471,10 +443,10 @@
                     var pageX = e.pageX || e.originalEvent.targetTouches[0].pageX;
                     var pageY = e.pageY || e.originalEvent.targetTouches[0].pageY;
                     insertText({x:pageX,y:pageY});
-                    self.socket.emit('textInsert',{x:pageX,y:pageY})
+                    socket.emit('textInsert',{x:pageX,y:pageY})
                 });
 
-                self.socket.on('textInsert',function(data){
+                socket.on('textInsert',function(data){
                     insertText(data)
                 })
 
@@ -488,10 +460,10 @@
                 $("#txtCancel").click(function () {
                     $("#txtDialog").hide(100);
                     $("#txtValue").val("");
-                    self.socket.emit('textCancel','textCancel')
+                    socket.emit('textCancel','textCancel')
                 });
 
-                self.socket.on('textCancel',function(data){
+                socket.on('textCancel',function(data){
                     $("#txtDialog").hide(100);
                     $("#txtValue").val("");
                 })
@@ -505,7 +477,7 @@
                     // var pos = getMousePos(canvas, event);
                     var pos = event;
 
-                    self.socket.emit('textValue',$("#txtValue").val())
+                    socket.emit('textValue',$("#txtValue").val())
 
                     lCtx.fillText($("#txtValue").val(), pos.x, pos.y);
                     tempDraw.push({
@@ -516,7 +488,7 @@
 
                 }
 
-                self.socket.on('textValue',function(data){
+                socket.on('textValue',function(data){
                     // $("#txtDialog").hide();
                     lCtx.font = $("#txtFontStyle").val() + " " + $("#txtFontSize").val() + "px " + $("#txtFontFamily").val();
                     ctx.font = $("#txtFontStyle").val() + " " + $("#txtFontSize").val() + "px " + $("#txtFontFamily").val();
@@ -536,10 +508,10 @@
                 $(".color").click(function () {
                     changeColor($(this).css("background-color"));
                     $(".currentColor").css("background-color", $(this).css("background-color"));
-                    self.socket.emit('changeColor',$(this).css('background-color'));
+                    socket.emit('changeColor',$(this).css('background-color'));
                 });
 
-                self.socket.on('changeColor',function(data){
+                socket.on('changeColor',function(data){
                     changeColor(data);
                     $(".currentColor").css("background-color",data);
                 })
@@ -558,26 +530,26 @@
 
                 $("#toolWidth").change(function () {
                     changeSize($(this).val().toString(), tool);
-                    self.socket.emit('changeToolWidth',{value:$(this).val().toString(),tool:tool});
+                    socket.emit('changeToolWidth',{value:$(this).val().toString(),tool:tool});
                 });
 
-                self.socket.on('changeToolWidth',function(data){
+                socket.on('changeToolWidth',function(data){
                     changeSize(data.value,data.tool);
                 })
 
-                $('.show-color').on('touchend',function(){
-                    $('.colorContainer').toggle();
-                    self.socket.emit('showColor','showColor')
+                $('#showColor').on('touchend',function(){
+                    $('#colorContainer').toggle();
+                    socket.emit('showColor','showColor')
                 })
-                self.socket.on('showColor',function(data){
-                    $('.colorContainer').toggle();
+                socket.on('showColor',function(data){
+                    $('#colorContainer').toggle();
                 })
 
                 $("#clear").click(function () {
                     $('#confirm-box').show();  
                 });
 
-                self.socket.on('clearScreen',function(data){
+                socket.on('clearScreen',function(data){
                     clear('canvas');
                     clear('layer');
                 });
@@ -586,8 +558,8 @@
                     $(this).parents('#confirm-box').hide();        
                     clear('canvas');
                     clear('layer');
-                    self.socket.emit('clear');
-                    self.socket.emit('clearScreen','clearScreen');
+                    socket.emit('clear');
+                    socket.emit('clearScreen','clearScreen');
                 });
 
                 $('#confirm-cancel').on('click',function(){
@@ -597,7 +569,7 @@
 
                 function createImage(){
                     var img = new Image();
-                    img.src = self.backgroundImage;
+                    img.src = option.backgroundImage;
                     img.onload = drawImg;
                     function drawImg(){
                         // let ctx2 = document.querySelector('#canvasBg').getContext('2d');
@@ -610,7 +582,7 @@
 
                 function makeMouseMove(pageX,pageY) {
                     if (mouseDown) {
-                        draw(pageX,self.showToolBar?(pageY-60):pageY);
+                        draw(pageX,pageY-60);
                     }
                 }
 
@@ -622,13 +594,13 @@
                     // iX = getMousePos(canvas, event).x || event.originalEvent.targetTouches[0].pageX;
                     // iY = getMousePos(canvas, event).y || event.originalEvent.targetTouches[0].pageY;
                     iX = x;
-                    iY = self.showToolBar?(y-60):y;
+                    iY = y-60;
 
                     if (tool === 'text') {
                         //set the moving text on mouse down
                         clear('layer');
                         ctx.fillText(tempDraw[0].txtData, iX, iY);
-                        self.socket.emit('text', {
+                        socket.emit('text', {
                             text: tempDraw[0].txtData,
                             x: iX,
                             y: iY,
@@ -681,18 +653,18 @@
                         ctx.fillStyle = currentColor;
                         switchBoard('inverse');
 
-                        self.socket.emit('changeCursor','text')
-                        self.socket.emit('switchBoard','inverse')
+                        socket.emit('changeCursor','text')
+                        socket.emit('switchBoard','inverse')
                     }
 
                 }
 
-                self.socket.on('changeCursor',function(data){
+                socket.on('changeCursor',function(data){
                     changeCursor(data);
                     ctx.fillStyle = currentColor;
                 })
 
-                self.socket.on('switchBoard',function(data){
+                socket.on('switchBoard',function(data){
                     switchBoard(data)
                 })
 
@@ -700,14 +672,14 @@
                     mouseDown = false;
 
                     if (tool === 'pencil') {
-                        self.socket.emit("pencil", {
+                        socket.emit("pencil", {
                             boardData: tempDraw,
                             brushSize: currentBrushSize,
                             brushColor: currentColor
                         });
                     } else if (tool === 'eraser') {
 
-                        self.socket.emit('eraser', {
+                        socket.emit('eraser', {
                             eraserData: tempDraw,
                             eraserSize: currentEraserSize
                         });
@@ -740,7 +712,7 @@
                             x: fX,
                             y: fY
                         }); //''''
-                        self.socket.emit('line', {
+                        socket.emit('line', {
                             points: tempDraw,
                             lineSize: currentLineSize,
                             lineColor: currentColor
@@ -765,7 +737,7 @@
                             w: (fX - iX),
                             h: (fY - iY)
                         }); //store in array
-                        self.socket.emit('rectangle', {
+                        socket.emit('rectangle', {
                             points: tempDraw,
                             lineSize: currentLineSize,
                             lineColor: currentColor
@@ -791,7 +763,7 @@
                         clear('layer');
 
 
-                        self.socket.emit('ellipse', {
+                        socket.emit('ellipse', {
                             points: {
                                 ix: iX,
                                 iy: iY,
@@ -935,18 +907,13 @@
 
                         ctx.beginPath();
 
-                        if(self.backgroundImage != ''){
-                            var into = $("#canvas2")[0];
-                            var ctx2 = into.getContext('2d');
-                            var image = new Image();
-                            image.src = self.backgroundImage;
-                            ctx2.drawImage(image,0,0,width,height);
-                            var pattern = ctx.createPattern(into, "no-repeat");
-                            ctx.fillStyle = pattern;
-                        }else{
-                            ctx.fillStyle = '#fff'
-                        }
-                            
+                        var into = $("#canvas2")[0];
+                        var ctx2 = into.getContext('2d');
+                        var image = new Image();
+                        image.src = option.backgroundImage;
+                        ctx2.drawImage(image,0,0,width,height);
+                        var pattern = ctx.createPattern(into, "no-repeat");
+                        ctx.fillStyle = pattern;
                         
                         ctx.arc(pos.x + 8, pos.y + 8, currentEraserSize, 0, 2 * Math.PI);
                         ctx.fill();
@@ -1017,7 +984,7 @@
 
                 }
 
-                self.socket.on('pencil', function (data) {
+                socket.on('pencil', function (data) {
 
                     ctx.lineWidth = data.brushSize;
                     ctx.strokeStyle = data.brushColor;
@@ -1039,7 +1006,7 @@
 
                 });
 
-                self.socket.on('eraser', function (data) {
+                socket.on('eraser', function (data) {
 
                     ctx.fillStyle = 'white';
 
@@ -1052,7 +1019,7 @@
 
                 });
 
-                self.socket.on('line', function (data) {
+                socket.on('line', function (data) {
 
                     ctx.strokeStyle = data.lineColor;
                     ctx.lineWidth = data.lineSize;
@@ -1065,7 +1032,7 @@
 
                 });
 
-                self.socket.on('rectangle', function (data) {
+                socket.on('rectangle', function (data) {
 
                     ctx.strokeStyle = data.lineColor;
                     ctx.lineWidth = data.lineSize;
@@ -1077,7 +1044,7 @@
 
                 });
 
-                self.socket.on('ellipse', function (data) {
+                socket.on('ellipse', function (data) {
 
                     ctx.strokeStyle = data.lineColor;
                     ctx.lineWidth = data.lineSize;
@@ -1092,7 +1059,7 @@
 
                 });
 
-                self.socket.on('text', function (data) {
+                socket.on('text', function (data) {
 
                     //set passed values
                     ctx.font = data.font;
@@ -1104,7 +1071,7 @@
                     ctx.fillStyle = currentColor;
                 });
 
-                self.socket.on('clear', function () {
+                socket.on('clear', function () {
                     ctx.clearRect(0, 0, width, height);
                 });
 
@@ -1115,7 +1082,7 @@
                     changeSize(2, 'pencil');
                     changeSize(2, 'line');
                     changeSize(10, 'eraser');
-                    changeTool(self.tool);
+                    changeTool("pencil");
 
                     //make brush smooth
                     ctx.lineJoin = 'round';
@@ -1133,11 +1100,10 @@
                 function fixWidth() {
 
                     width = $(window).width();
-                    height = self.showToolBar?($(window).height()-60):$(window).height();
+                    height = $(window).height()-60;
 
                     $(".cnvs").attr("width", width);
                     $(".cnvs").attr("height", height);
-                    $(".cnvs").css("top", self.showToolBar?'60px':'0');
 
                     //on resize all settings are cleared
                     setDefaults();
@@ -1147,25 +1113,25 @@
                 fixWidth();
 
                 $(window).on('beforeunload', function () {
-                    self.socket.close();
+                    socket.close();
                 });
-            },
+            }
         }
     }
 </script>
 <style>
-    .weui-toast{width: auto !important;padding-left: 1rem;padding-right: 1rem;}
-      .weui-toast__content{font-size: 1.4rem !important;}
-      .weui-icon_toast.weui-loading{margin: 0 !important}
-      .vux-loading .weui-toast{min-height: 5rem !important;display: flex;align-items: center;top:50%;-webkit-transform:translate(-50%,-50%);transform:translate(-50%,-50%);}
-      .weui-toast.weui-toast_text{width: auto !important;}
+.weui-toast{width: auto !important;padding-left: 1rem;padding-right: 1rem;}
+  .weui-toast__content{font-size: 1.4rem !important;}
+  .weui-icon_toast.weui-loading{margin: 0 !important}
+  .vux-loading .weui-toast{min-height: 5rem !important;display: flex;align-items: center;top:50%;-webkit-transform:translate(-50%,-50%);transform:translate(-50%,-50%);}
+  .weui-toast.weui-toast_text{width: auto !important;}
     .white-board{
         height: 100%;
     }
 
     .cnvs{  
         position: absolute;
-        top: 0;
+        top: 60px;
         left: 0;   
     }
 

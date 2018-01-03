@@ -114,6 +114,18 @@ const NativeSDK = {
       }
     });
   },
+
+  /*截屏*/
+  captureScreen(){
+      const self = this;
+      return new Promise((resolve,reject)=>{
+          wx.captureScreen();
+          window.captureScreenCallback = function(res){
+              resolve(res)
+          }
+      });
+  },
+
   logout(){
     wx.logout();
   }
